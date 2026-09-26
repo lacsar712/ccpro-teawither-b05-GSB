@@ -19,6 +19,10 @@ def ensure_seed_data():
     if Garden.objects.exists():
         return
 
+    now = timezone.now().replace(second=0, microsecond=0)
+    window_start = now - timezone.timedelta(days=3)
+    window_end = now + timezone.timedelta(days=1)
+
     g1 = Garden.objects.create(
         name="云雾岭一号园",
         altitudeBand="800-1000m",
@@ -36,23 +40,24 @@ def ensure_seed_data():
         cultivar="福鼎大白",
         loadKg=Decimal("120.50"),
         status=Trough.STATUS_WITHERING,
+        windowStart=window_start,
+        windowEnd=window_end,
     )
-    t2 = Trough.objects.create(
-        garden=g1,
-        troughCode="A-02",
-        cultivar="铁观音",
-        loadKg=Decimal("95.00"),
-        status=Trough.STATUS_LOADING,
+    # 一槽多批次：同一槽内按开始时刻先后依次创建，创建顺序与开始时刻一致（不乱序）
+    WitherBatch.objects.create(
+        trough=t1,
+        startedAt=now - timezone.timedelta(hours=48),
+        targetMoisture=Decimal("39.50"),
+        actualMoisture=Decimal("39.10"),
+        rollGrade="三级",
     )
-    t3 = Trough.objects.create(
-        garden=g2,
-        troughCode="B-01",
-        cultivar="黄金芽",
-        loadKg=Decimal("88.25"),
-        status=Trough.STATUS_WITHERING,
+    WitherBatch.objects.create(
+        trough=t1,
+        startedAt=now - timezone.timedelta(hours=30),
+        targetMoisture=Decimal("38.50"),
+        actualMoisture=Decimal("38.20"),
+        rollGrade="二级",
     )
-
-    now = timezone.now()
     WitherBatch.objects.create(
         trough=t1,
         startedAt=now - timezone.timedelta(hours=18),
@@ -60,12 +65,35 @@ def ensure_seed_data():
         actualMoisture=Decimal("37.50"),
         rollGrade="一级",
     )
+
+    # 装叶中的槽：批次在萎凋状态下登记后，槽再转回装叶（新建联锁只约束创建时刻）
+    t2 = Trough.objects.create(
+        garden=g1,
+        troughCode="A-02",
+        cultivar="铁观音",
+        loadKg=Decimal("95.00"),
+        status=Trough.STATUS_WITHERING,
+        windowStart=window_start,
+        windowEnd=window_end,
+    )
     WitherBatch.objects.create(
         trough=t2,
         startedAt=now - timezone.timedelta(hours=2),
         targetMoisture=Decimal("40.00"),
         actualMoisture=None,
         rollGrade="待评",
+    )
+    t2.status = Trough.STATUS_LOADING
+    t2.save()
+
+    t3 = Trough.objects.create(
+        garden=g2,
+        troughCode="B-01",
+        cultivar="黄金芽",
+        loadKg=Decimal("88.25"),
+        status=Trough.STATUS_WITHERING,
+        windowStart=window_start,
+        windowEnd=window_end,
     )
     WitherBatch.objects.create(
         trough=t3,
@@ -82,6 +110,8 @@ def ensure_seed_data():
         cultivar="龙井43",
         loadKg=Decimal("110.00"),
         status=Trough.STATUS_WITHERING,
+        windowStart=window_start,
+        windowEnd=window_end,
     )
     WitherBatch.objects.create(
         trough=t4,

@@ -6,11 +6,27 @@
   <div class="actions">
     <button class="btn btn-secondary btn-sm"
             hx-get="{% url 'batch_list' %}"
+            hx-include="[name='trough']"
             hx-target="#batch-table"
             hx-swap="innerHTML">刷新列表</button>
     <a class="btn" href="{% url 'batch_create' %}">新建批次</a>
   </div>
 </div>
+<form class="filter-bar" method="get" action="{% url 'batch_list' %}"
+      hx-get="{% url 'batch_list' %}"
+      hx-target="#batch-table"
+      hx-swap="innerHTML"
+      hx-trigger="change, submit">
+  <label for="trough-filter">按槽过滤</label>
+  <select id="trough-filter" name="trough" class="input">
+    <option value="">全部槽位</option>
+    {% for t in troughs %}
+    <option value="{{ t.pk }}"{% if current_trough == t.pk|stringformat:"s" %} selected{% endif %}>{{ t.garden.name }} / {{ t.troughCode }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-secondary btn-sm" type="submit">筛选</button>
+  <span class="muted">按开始时刻倒序排列，同一槽内顺序与开始时刻一致，可对账。</span>
+</form>
 <div class="card" id="batch-table">
   {% include "batches/_table.html" %}
 </div>

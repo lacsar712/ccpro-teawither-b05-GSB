@@ -51,10 +51,18 @@ python manage.py runserver 0.0.0.0:4100
 ## 业务模型
 
 1. **Garden（茶园）**：`name`、`altitudeBand`、`notes`
-2. **Trough（萎凋槽）**：归属茶园、`troughCode`、`cultivar`、`loadKg`、状态 `loading|withering|ready`；同一茶园内槽位编号唯一
+2. **Trough（萎凋槽）**：归属茶园、`troughCode`、`cultivar`、`loadKg`、状态 `loading|withering|ready`、允许窗 `windowStart`~`windowEnd`；同一茶园内槽位编号唯一
 3. **WitherBatch（萎凋批次）**：归属槽位、`startedAt`、`targetMoisture`、`actualMoisture`（可空）、`rollGrade`
 
-**业务规则**：将槽位状态设为 `ready`（可下槽）时，若最新批次的 `actualMoisture` 为空或大于 40，抛出中文 `ValidationError`。
+**业务规则**：
+
+1. 将槽位状态设为 `ready`（可下槽）时，若最新批次的 `actualMoisture` 为空或大于 40，抛出中文 `ValidationError`。
+2. **允许窗**：新建或更新批次时，`startedAt` 必须落在所属槽允许窗 `[windowStart, windowEnd]` 内（含边界），否则拒绝。
+3. **状态联锁（仅新建）**：`loading`（装叶中）的槽禁止新建批次；`withering`（萎凋中）与 `ready`（可下槽）可建。更新批次不校验槽状态——可下槽上更新实测含水率仍允许，但改开始时刻仍受允许窗与乱序约束。
+4. **乱序定义**：同一槽位内，批次的创建先后（`id` 升序）必须与开始时刻先后一致；若批次 A 比批次 B 先创建（`id` 更小）但 A 的开始时刻更晚，即为**乱序**。为防止乱序：
+   - 新建：新批次 `id` 最大，其开始时刻不得早于槽内现有最晚开始时刻（槽内已存在开始时刻更晚的批次时拒绝）。
+   - 更新：不得把开始时刻改到更早创建批次之前，或更晚创建批次之后。
+5. **列表对账**：批次列表始终按开始时刻倒序（`-startedAt, -id`），支持 `?trough=<id>` 按槽过滤；满足不乱序约束时，过滤后的顺序与创建顺序一致，可对账。
 
 ## 种子数据
 
@@ -63,6 +71,8 @@ python manage.py seed_data
 ```
 
 幂等：已有茶园则只保证账号存在。亦可在环境变量 `TEAWITHER_AUTO_SEED=1` 时于 `post_migrate` 自动播种。
+
+样例数据覆盖全部槽状态，其中 `A-01` 为一槽多批次（3 个批次，创建顺序与开始时刻一致），所有批次开始时刻均落在所属槽允许窗内。
 
 ## 目录结构
 

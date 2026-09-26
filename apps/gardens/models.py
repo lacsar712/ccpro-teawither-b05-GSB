@@ -1,5 +1,11 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Max, Min
+from django.utils import timezone
+
+
+def _fmt(dt):
+    return timezone.localtime(dt).strftime("%Y-%m-%d %H:%M")
 
 
 class Garden(models.Model):
@@ -41,6 +47,8 @@ class Trough(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_LOADING,
     )
+    windowStart = models.DateTimeField("允许窗开始")
+    windowEnd = models.DateTimeField("允许窗结束")
 
     class Meta:
         ordering = ["garden__name", "troughCode"]
@@ -61,6 +69,14 @@ class Trough(models.Model):
 
     def clean(self):
         super().clean()
+        if (
+            self.windowStart is not None
+            and self.windowEnd is not None
+            and self.windowStart >= self.windowEnd
+        ):
+            raise ValidationError(
+                {"windowEnd": "允许窗结束时刻必须晚于允许窗开始时刻。"}
+            )
         if self.status != self.STATUS_READY:
             return
         latest = None
@@ -109,3 +125,77 @@ class WitherBatch(models.Model):
 
     def __str__(self):
         return f"{self.trough} @ {self.startedAt:%Y-%m-%d %H:%M}"
+
+    def clean(self):
+        super().clean()
+        if self.trough_id is None or self.startedAt is None:
+            return
+        trough = self.trough
+        started = self.startedAt
+
+        # 1) 开始时刻必须落在所属槽允许窗内（新建与更新均校验）
+        if trough.windowStart is not None and started < trough.windowStart:
+            raise ValidationError(
+                {
+                    "startedAt": f"开始时刻早于所属槽允许窗开始（{_fmt(trough.windowStart)}）。"
+                }
+            )
+        if trough.windowEnd is not None and started > trough.windowEnd:
+            raise ValidationError(
+                {
+                    "startedAt": f"开始时刻晚于所属槽允许窗结束（{_fmt(trough.windowEnd)}）。"
+                }
+            )
+
+        # 2) 状态联锁：仅新建时校验，装叶中禁止建批；萎凋中/可下槽可建。
+        #    更新不校验状态（可下槽上更新实测含水率仍允许）。
+        if self.pk is None and trough.status == Trough.STATUS_LOADING:
+            raise ValidationError(
+                {"trough": "装叶中的萎凋槽禁止新建批次（须为萎凋中或可下槽）。"}
+            )
+
+        # 3) 防乱序：同一槽内，批次创建先后（id 升序）须与开始时刻先后一致。
+        #    新建批次 id 最大，故开始时刻不得早于槽内现有最晚开始时刻；
+        #    更新不得把开始时刻改到更早创建批次之前，或更晚创建批次之后。
+        siblings = WitherBatch.objects.filter(trough_id=trough.pk)
+        if self.pk is None:
+            latest_start = siblings.aggregate(m=Max("startedAt"))["m"]
+            if latest_start is not None and started < latest_start:
+                raise ValidationError(
+                    {
+                        "startedAt": (
+                            f"该槽已存在开始时刻更晚的批次（最晚 {_fmt(latest_start)}），"
+                            "新批次开始时刻不得早于该时刻，以免乱序。"
+                        )
+                    }
+                )
+        else:
+            siblings = siblings.exclude(pk=self.pk)
+            earlier_max = siblings.filter(id__lt=self.pk).aggregate(
+                m=Max("startedAt")
+            )["m"]
+            later_min = siblings.filter(id__gt=self.pk).aggregate(
+                m=Min("startedAt")
+            )["m"]
+            if earlier_max is not None and started < earlier_max:
+                raise ValidationError(
+                    {
+                        "startedAt": (
+                            "不得把开始时刻改到本槽更早创建的批次"
+                            f"（{_fmt(earlier_max)}）之前，以免乱序。"
+                        )
+                    }
+                )
+            if later_min is not None and started > later_min:
+                raise ValidationError(
+                    {
+                        "startedAt": (
+                            "不得把开始时刻改到本槽更晚创建的批次"
+                            f"（{_fmt(later_min)}）之后，以免乱序。"
+                        )
+                    }
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)

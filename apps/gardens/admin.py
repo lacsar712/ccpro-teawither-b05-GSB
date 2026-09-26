@@ -11,7 +11,16 @@ class GardenAdmin(admin.ModelAdmin):
 
 @admin.register(Trough)
 class TroughAdmin(admin.ModelAdmin):
-    list_display = ("id", "garden", "troughCode", "cultivar", "loadKg", "status")
+    list_display = (
+        "id",
+        "garden",
+        "troughCode",
+        "cultivar",
+        "loadKg",
+        "status",
+        "windowStart",
+        "windowEnd",
+    )
     list_filter = ("status", "garden")
     search_fields = ("troughCode", "cultivar")
 

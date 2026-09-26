@@ -156,7 +156,18 @@ class BatchListView(LoginRequiredMixin, ListView):
     context_object_name = "batches"
 
     def get_queryset(self):
-        return WitherBatch.objects.select_related("trough", "trough__garden").all()
+        qs = WitherBatch.objects.select_related("trough", "trough__garden")
+        trough_id = self.request.GET.get("trough")
+        if trough_id:
+            qs = qs.filter(trough_id=trough_id)
+        # 显式按开始时刻倒序：按槽过滤后的顺序与开始时刻排序一致，可对账
+        return qs.order_by("-startedAt", "-id")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["troughs"] = Trough.objects.select_related("garden").all()
+        context["current_trough"] = self.request.GET.get("trough", "")
+        return context
 
     def get(self, request, *args, **kwargs):
         self.object_list = self.get_queryset()
