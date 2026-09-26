@@ -156,7 +156,23 @@ class BatchListView(LoginRequiredMixin, ListView):
     context_object_name = "batches"
 
     def get_queryset(self):
-        return WitherBatch.objects.select_related("trough", "trough__garden").all()
+        # 显式按开始时刻降序排序：按槽过滤后的顺序与开始时刻排序一致，便于对账。
+        queryset = WitherBatch.objects.select_related(
+            "trough", "trough__garden"
+        ).order_by("-startedAt", "-id")
+        self.selected_trough = None
+        trough_id = self.request.GET.get("trough")
+        if trough_id:
+            self.selected_trough = Trough.objects.filter(pk=trough_id).first()
+            if self.selected_trough is not None:
+                queryset = queryset.filter(trough=self.selected_trough)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["troughs"] = Trough.objects.select_related("garden").all()
+        context["selected_trough"] = self.selected_trough
+        return context
 
     def get(self, request, *args, **kwargs):
         self.object_list = self.get_queryset()
@@ -176,6 +192,17 @@ class BatchCreateView(LoginRequiredMixin, CreateView):
     template_name = "batches/form.html"
     success_url = reverse_lazy("batch_list")
 
+    def get_initial(self):
+        initial = super().get_initial()
+        trough_id = self.request.GET.get("trough")
+        if trough_id and Trough.objects.filter(pk=trough_id).exists():
+            initial["trough"] = trough_id
+        return initial
+
+    def get_success_url(self):
+        # 建单成功后回到该槽的过滤视图，顺序可直接对账。
+        return f"{reverse_lazy('batch_list')}?trough={self.object.trough_id}"
+
     def form_valid(self, form):
         messages.success(self.request, "萎凋批次已创建")
         return super().form_valid(form)
@@ -186,6 +213,9 @@ class BatchUpdateView(LoginRequiredMixin, UpdateView):
     form_class = WitherBatchForm
     template_name = "batches/form.html"
     success_url = reverse_lazy("batch_list")
+
+    def get_success_url(self):
+        return f"{reverse_lazy('batch_list')}?trough={self.object.trough_id}"
 
     def form_valid(self, form):
         messages.success(self.request, "萎凋批次已更新")

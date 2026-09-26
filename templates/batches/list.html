@@ -5,11 +5,28 @@
   <h1>萎凋批次</h1>
   <div class="actions">
     <button class="btn btn-secondary btn-sm"
-            hx-get="{% url 'batch_list' %}"
+            hx-get="{% url 'batch_list' %}{% if selected_trough %}?trough={{ selected_trough.pk }}{% endif %}"
             hx-target="#batch-table"
             hx-swap="innerHTML">刷新列表</button>
-    <a class="btn" href="{% url 'batch_create' %}">新建批次</a>
+    <a class="btn" href="{% url 'batch_create' %}{% if selected_trough %}?trough={{ selected_trough.pk }}{% endif %}">新建批次</a>
   </div>
+</div>
+<div class="card">
+  <form method="get" class="form-grid" id="batch-filter">
+    <div class="form-row">
+      <label for="trough-filter">按槽位过滤</label>
+      <select id="trough-filter" name="trough" class="input"
+              onchange="document.getElementById('batch-filter').submit()">
+        <option value="">全部槽位</option>
+        {% for t in troughs %}
+        <option value="{{ t.pk }}" {% if selected_trough and selected_trough.pk == t.pk %}selected{% endif %}>
+          {{ t.garden.name }} / {{ t.troughCode }}（{{ t.get_status_display }}）
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+  <p class="muted">列表按开始时间降序排列；过滤到单一槽位时，显示顺序与开始时间排序一致，可逐条对账。</p>
 </div>
 <div class="card" id="batch-table">
   {% include "batches/_table.html" %}

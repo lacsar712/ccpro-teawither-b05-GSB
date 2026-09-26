@@ -16,6 +16,10 @@
     </div>
     {% endfor %}
     {{ form.non_field_errors }}
+    <p class="muted">
+      开始时刻必须落在槽位允许窗内；装叶中的槽位不可新建批次（萎凋中、可下槽可建）。<br>
+      同一槽只允许按时间向前补录：新批次开始时刻不得晚于已有批次，更新不得越过同槽相邻批次，以免乱序；可下槽上补录实测含水率不受影响。
+    </p>
     <button class="btn" type="submit">保存</button>
   </form>
 </div>

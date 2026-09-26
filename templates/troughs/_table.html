@@ -7,6 +7,7 @@
       <th>品种</th>
       <th>装叶量(kg)</th>
       <th>状态</th>
+      <th>允许窗</th>
       <th>操作</th>
     </tr>
   </thead>
@@ -18,7 +19,13 @@
       <td>{{ t.cultivar }}</td>
       <td>{{ t.loadKg }}</td>
       <td><span class="badge badge-{{ t.status }}">{{ t.get_status_display }}</span></td>
+      <td class="muted">
+        {% if t.windowStart or t.windowEnd %}
+        {{ t.windowStart|date:"Y-m-d H:i"|default:"不限" }} ~ {{ t.windowEnd|date:"Y-m-d H:i"|default:"不限" }}
+        {% else %}不限{% endif %}
+      </td>
       <td class="actions">
+        <a class="btn btn-sm btn-secondary" href="{% url 'batch_list' %}?trough={{ t.pk }}">批次</a>
         <a class="btn btn-sm btn-secondary" href="{% url 'trough_edit' t.pk %}">编辑</a>
         <a class="btn btn-sm btn-danger" href="{% url 'trough_delete' t.pk %}">删除</a>
       </td>

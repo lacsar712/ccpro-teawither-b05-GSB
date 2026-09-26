@@ -30,19 +30,28 @@ def ensure_seed_data():
         notes="背风缓坡",
     )
 
+    now = timezone.now()
+    day = timezone.timedelta(days=1)
+
+    # 一槽多批次：A-01 上先录较新批次，再向前补录更早批次（不乱序）。
     t1 = Trough.objects.create(
         garden=g1,
         troughCode="A-01",
         cultivar="福鼎大白",
         loadKg=Decimal("120.50"),
         status=Trough.STATUS_WITHERING,
+        windowStart=now - 2 * day,
+        windowEnd=now + day,
     )
+    # 装叶中槽：尚无批次，演示“装叶中禁止新建批次”联锁。
     t2 = Trough.objects.create(
         garden=g1,
         troughCode="A-02",
         cultivar="铁观音",
         loadKg=Decimal("95.00"),
         status=Trough.STATUS_LOADING,
+        windowStart=now - timezone.timedelta(hours=8),
+        windowEnd=now + timezone.timedelta(hours=8),
     )
     t3 = Trough.objects.create(
         garden=g2,
@@ -50,9 +59,10 @@ def ensure_seed_data():
         cultivar="黄金芽",
         loadKg=Decimal("88.25"),
         status=Trough.STATUS_WITHERING,
+        windowStart=now - 2 * day,
+        windowEnd=now + day,
     )
 
-    now = timezone.now()
     WitherBatch.objects.create(
         trough=t1,
         startedAt=now - timezone.timedelta(hours=18),
@@ -61,11 +71,11 @@ def ensure_seed_data():
         rollGrade="一级",
     )
     WitherBatch.objects.create(
-        trough=t2,
-        startedAt=now - timezone.timedelta(hours=2),
-        targetMoisture=Decimal("40.00"),
-        actualMoisture=None,
-        rollGrade="待评",
+        trough=t1,
+        startedAt=now - timezone.timedelta(hours=26),
+        targetMoisture=Decimal("39.00"),
+        actualMoisture=Decimal("38.20"),
+        rollGrade="一级",
     )
     WitherBatch.objects.create(
         trough=t3,
@@ -82,6 +92,8 @@ def ensure_seed_data():
         cultivar="龙井43",
         loadKg=Decimal("110.00"),
         status=Trough.STATUS_WITHERING,
+        windowStart=now - 2 * day,
+        windowEnd=now + day,
     )
     WitherBatch.objects.create(
         trough=t4,
